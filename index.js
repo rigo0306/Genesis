@@ -12,6 +12,57 @@ exports.fetch = fetch;
 const app = express();
 exports.app = app;
 
+// ---------------------- CORS CONFIGURABLE Y RELIABLE ----------------------
+/* CORS - ajustado para:
+   - permitir llamadas sin origin (curl/postman)
+   - permitir orígenes listados en allowedOrigins
+   - permitir cualquier subdominio de onrender.com (útil para deploys en Render)
+   - aceptar preflight OPTIONS globalmente
+*/
+const allowedOrigins = [
+  "https://genesis-sf8f.onrender.com",
+  "https://backend-genesis.onrender.com",
+  "https://genesis-cjoa.onrender.com", // <-- tu deploy en Render
+  "http://127.0.0.1:5500",
+  "http://127.0.0.1:5501",
+  "http://localhost:10000",
+  "http://localhost:5500"
+];
+
+app.use((req, res, next) => {
+  // optional debug: console.log('CORS origin:', req.headers.origin);
+  next();
+});
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // permitir requests sin origin (herramientas, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // permitir subdominios de onrender.com
+    try {
+      const url = new URL(origin);
+      if (url.hostname && url.hostname.endsWith('.onrender.com')) return callback(null, true);
+    } catch (e) {
+      // ignore parse errors
+    }
+
+    return callback(new Error("No permitido por CORS"));
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  credentials: false
+}));
+
+// permitir preflight para todas las rutas
+app.options('*', cors());
+// -------------------- FIN CORS --------------------
+
+// parse JSON bodies
+app.use(express.json());
+
 // --- Servir archivos estáticos desde la carpeta 'public' ---
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -48,27 +99,6 @@ function addLog(message) {
   serverLogs.push(`[${timestamp}] ${message}`);
   if (serverLogs.length > 200) serverLogs.shift();
 }
-
-// CORS (ajusta allowedOrigins si sirve frontend desde otro dominio)
-const allowedOrigins = [
-  "https://genesis-sf8f.onrender.com",
-  "https://backend-genesis.onrender.com",
-  "http://127.0.0.1:5500",
-  "http://127.0.0.1:5501",
-  "http://localhost:10000",
-  "http://localhost:5500"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-    else callback(new Error("No permitido por CORS"));
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
-}));
-
-app.use(express.json());
 
 // Rutas y archivos: estadísticas
 const directoryPath = path.join(__dirname, "data");
