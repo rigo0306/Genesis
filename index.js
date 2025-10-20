@@ -49,21 +49,42 @@ function addLog(message) {
   if (serverLogs.length > 200) serverLogs.shift();
 }
 
-/* ---------- Compat handler para products.json (antes de static) ---------- */
+/* ---------- Compat handler para products.json (antes de static) ----------
+   Normaliza siempre a: { products: [ ... ] }
+   Esto cubre todos los formatos: array, objeto { products: [...] }, etc.
+*/
 app.get(['/Json/products.json', '/public/Json/products.json', '/products.json'], async (req, res, next) => {
   try {
-    if (!fs.existsSync(productsJsonFilePath)) return res.status(200).json({ products: [] });
-    const raw = await fs.promises.readFile(productsJsonFilePath, 'utf8');
+    if (!fs.existsSync(productsJsonFilePath)) {
+      return res.status(200).json({ products: [] });
+    }
+    const raw = await fs.promises.readFile(productsJsonFilePath, 'utf8').catch(()=> '');
     if (!raw) return res.json({ products: [] });
+
     let parsed;
     try { parsed = JSON.parse(raw); } catch (e) { return res.json({ products: [] }); }
-    if (Array.isArray(parsed)) return res.json({ products: parsed });
-    return res.json(parsed);
+
+    let productsArray = [];
+    if (Array.isArray(parsed)) {
+      productsArray = parsed;
+    } else if (parsed && Array.isArray(parsed.products)) {
+      productsArray = parsed.products;
+    } else if (parsed && Array.isArray(parsed.data)) {
+      // en caso de formatos alternativos que usen "data"
+      productsArray = parsed.data;
+    } else {
+      // intentar detectar si el objeto es un map de id->producto
+      const values = Object.values(parsed || {}).filter(v => v && typeof v === 'object' && (v.nombre || v.id || v.price || v.precio));
+      if (values.length) productsArray = values;
+    }
+
+    return res.json({ products: productsArray });
   } catch (err) {
     console.error('Error reading products.json compatibility handler:', err);
     next(err);
   }
 });
+// -------------------- FIN compat handler --------------------
 
 /* ---------- CORS (flexible para Render y herramientas) ---------- */
 const allowedOrigins = [
@@ -144,15 +165,9 @@ app.post("/guardar-estadistica", async (req, res) => {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
     }
 
-    // lock
     try { release = await lockfile.lock(estadisticaFilePath); addLog(`Archivo bloqueado: ${estadisticaFilePath}`); } catch (e) { addLog('WARN: no se pudo bloquear archivo de estadisticas: ' + e.message); }
 
-    let raw = '[]';
-    try { raw = await fs.promises.readFile(estadisticaFilePath, 'utf8'); } catch (e) {
-      if (e.code === 'ENOENT') { await fs.promises.writeFile(estadisticaFilePath, '[]', 'utf8'); raw = '[]'; addLog('Archivo estadistica inicializado'); }
-      else throw e;
-    }
-
+    const raw = await fs.promises.readFile(estadisticaFilePath, 'utf8').catch(()=> '[]');
     const estadisticas = Array.isArray(sanitizeJSON(raw)) ? sanitizeJSON(raw) : [];
     const usuarioExistente = estadisticas.find(est => est.ip === nuevaEstadistica.ip);
     const fechaHoraCuba = moment().tz("America/Havana").format("YYYY-MM-DD HH:mm:ss");
@@ -163,7 +178,7 @@ app.post("/guardar-estadistica", async (req, res) => {
       fecha_hora_entrada: fechaHoraCuba,
       origen: nuevaEstadistica.origen,
       afiliado: nuevaEstadistica.afiliado || "Ninguno",
-      duracion_sesion_segundos: nuevaEstadistica.duracion_sesion_segundos || 0,
+      duracion_sesion_segundos: nuevaEstadistica.duracion_sesionundos || nuevaEstadistica.duracion_sesion_segundos || 0,
       tiempo_carga_pagina_ms: nuevaEstadistica.tiempo_carga_pagina_ms || 0,
       nombre_comprador: nuevaEstadistica.nombre_comprador || "N/A",
       telefono_comprador: nuevaEstadistica.telefono_comprador || "N/A",
@@ -229,7 +244,6 @@ const upload = multer({
 });
 
 app.post('/upload-image', (req, res) => {
-  // envolver multer para capturar errores y usar async style
   upload.single('image')(req, res, async (err) => {
     if (err) {
       console.error('Multer error on /upload-image:', err);
