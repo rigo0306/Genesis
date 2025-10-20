@@ -141,7 +141,10 @@
           <div class="form-actions">
             <button id="deleteBtn" class="btn ghost" type="button">Eliminar</button>
             <button id="clearBtn" class="btn ghost" type="button">Limpiar</button>
-            <button id="saveBtn" class="btn primary" type="submit">Guardar</button>
+            <button id="saveBtn" class="btn primary" type="submit">
+              <span id="saveLabel">Guardar</span>
+              <span id="saveLoader" style="display:none;margin-left:8px" class="loader"></span>
+            </button>
           </div>
 
           <p class="small" style="margin-top:10px">Los cambios se guardan en <code>/public/Json/products.json</code></p>
@@ -158,7 +161,7 @@
 */
 
 const API_BASE = '/api'; // relative - works when backend serves frontend
-const IMAGE_UPLOAD_ENDPOINT = '/api/upload-image'; // <- actualizado
+const IMAGE_UPLOAD_ENDPOINT = '/api/upload-image'; // <- endpoint correcto
 const productsTableBody = document.querySelector('#productsTable tbody');
 const countInfo = document.getElementById('countInfo');
 const emptyList = document.getElementById('emptyList');
@@ -170,7 +173,6 @@ async function fetchJson(url, opts = {}) {
   const res = await fetch(url, opts);
   if (!res.ok) {
     const text = await res.text().catch(()=>'');
-
     // intenta parsear JSON de error si lo hay
     try {
       const j = JSON.parse(text);
@@ -265,6 +267,22 @@ async function loadToForm(id) {
   }
 }
 
+// UI helpers to disable/enable save
+function setSaving(isSaving) {
+  const btn = document.getElementById('saveBtn');
+  const label = document.getElementById('saveLabel');
+  const loader = document.getElementById('saveLoader');
+  if (isSaving) {
+    btn.disabled = true;
+    label.textContent = 'Guardando...';
+    loader.style.display = 'inline-block';
+  } else {
+    btn.disabled = false;
+    label.textContent = 'Guardar';
+    loader.style.display = 'none';
+  }
+}
+
 // Create or update product (handles image upload first)
 document.getElementById('productForm').onsubmit = async function(e) {
   e.preventDefault();
@@ -279,6 +297,7 @@ document.getElementById('productForm').onsubmit = async function(e) {
     descuento: Number(form.descuento.value || 0),
   };
 
+  setSaving(true);
   try {
     // Upload image if selected
     const file = imageInput.files && imageInput.files[0];
@@ -289,14 +308,32 @@ document.getElementById('productForm').onsubmit = async function(e) {
         method: 'POST',
         body: fd
       });
+      const upText = await upResp.text().catch(()=>'');
+      let upJson = {};
+      try { upJson = upText ? JSON.parse(upText) : {}; } catch(e) { upJson = { raw: upText }; }
+
       if (!upResp.ok) {
-        const txt = await upResp.text().catch(()=>'');
-        throw new Error('Error subiendo imagen: ' + upResp.status + ' ' + txt);
+        // intenta mostrar detalle JSON si vino
+        throw new Error('Error subiendo imagen: ' + upResp.status + ' ' + (upJson.error || upJson.details || upJson.raw || upText));
       }
-      const upJson = await upResp.json();
-      if (!upJson.url) throw new Error('Respuesta inválida del servidor al subir imagen');
+      if (!upJson.url) throw new Error('Respuesta inválida del servidor al subir imagen: ' + JSON.stringify(upJson));
       body.imagen = upJson.url;
       imgPreview.src = upJson.url;
+    } else {
+      // si no hay archivo: si la vista previa ya tiene una URL pública, úsala
+      // ignoramos data: URLs (son previews locales sin path público)
+      if (imgPreview.src && !imgPreview.src.startsWith('data:') && imgPreview.src.trim() !== '') {
+        // si contiene el hostname completo, convertir a path relativo (/Images/...)
+        try {
+          const u = new URL(imgPreview.src, window.location.href);
+          body.imagen = u.pathname;
+        } catch (e) {
+          // fallback: usar tal cual
+          body.imagen = imgPreview.src;
+        }
+      } else {
+        body.imagen = ''; // sin imagen
+      }
     }
 
     if (!id) {
@@ -320,9 +357,14 @@ document.getElementById('productForm').onsubmit = async function(e) {
     await loadProducts();
     form.reset();
     imgPreview.src = '';
+    document.getElementById('editorTitle').innerText = 'Editar producto';
   } catch (err) {
     console.error(err);
-    alert('Error guardando producto: ' + err.message);
+    // err puede venir con mucho texto, limpiamos un poco
+    let msg = err && err.message ? err.message : String(err);
+    alert('Error guardando producto: ' + msg);
+  } finally {
+    setSaving(false);
   }
 };
 
