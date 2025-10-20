@@ -8,15 +8,23 @@ const multer = require('multer');
 module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPath, options = {}) {
   const router = express.Router();
 
-  // Asegura que existan directorios y archivo
-  fs.mkdirSync(path.dirname(productsJsonPath), { recursive: true });
-  fs.mkdirSync(imagesFolderPath, { recursive: true });
+  // Asegurar dirs
+  try {
+    fs.mkdirSync(path.dirname(productsJsonPath), { recursive: true });
+    fs.mkdirSync(imagesFolderPath, { recursive: true });
+  } catch (e) {
+    console.error('ERROR creando carpetas iniciales:', e);
+  }
 
-  // Si no existe el archivo, inicializar con array vacío
+  // Inicializar archivo products.json si no existe
   if (!fs.existsSync(productsJsonPath)) {
-    fs.writeFileSync(productsJsonPath, '[]', 'utf8');
+    try {
+      fs.writeFileSync(productsJsonPath, '[]', 'utf8');
+    } catch (e) {
+      console.error('ERROR creando products.json:', e);
+    }
   } else {
-    // Si existe y es un objeto con "products", normalizamos a array y guardamos
+    // Normalizar formato { "products": [...] } -> [...]
     try {
       const raw = fs.readFileSync(productsJsonPath, 'utf8').trim();
       if (raw) {
@@ -26,12 +34,11 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
         }
       }
     } catch (e) {
-      // si algo falla dejamos el archivo como está (no romper startup)
       console.warn('Warning normalizing products.json:', e.message);
     }
   }
 
-  // Multer para subir imágenes (guarda en imagesFolderPath)
+  // Multer - guardado en imagesFolderPath
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, imagesFolderPath),
     filename: (req, file, cb) => {
@@ -40,9 +47,12 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
       cb(null, name);
     }
   });
-  const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+  const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  });
 
-  // Lectura segura de productos -> siempre devuelve un array
+  // Funciones de lectura/escritura
   async function readProducts() {
     try {
       const raw = await fs.promises.readFile(productsJsonPath, 'utf8');
@@ -52,13 +62,11 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
       if (parsed && typeof parsed === 'object' && Array.isArray(parsed.products)) return parsed.products;
       return [];
     } catch (e) {
-      // si hay error, intenta recuperarse devolviendo array vacío
       console.error('readProducts error:', e.message);
       return [];
     }
   }
 
-  // Escritura segura (con lock) -> escribe siempre un array JSON
   async function writeProducts(arr) {
     let release = null;
     try {
@@ -71,13 +79,12 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     }
   }
 
-  // GET /api/products -> lista
+  // Rutas CRUD productos
   router.get('/products', async (req, res) => {
     const products = await readProducts();
     res.json(products);
   });
 
-  // GET /api/products/:id -> uno
   router.get('/products/:id', async (req, res) => {
     const products = await readProducts();
     const p = products.find(x => String(x.id) === String(req.params.id));
@@ -85,7 +92,6 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     res.json(p);
   });
 
-  // POST /api/products -> crear (sin auth para admin local; si quieres auth lo activamos)
   router.post('/products', express.json(), async (req, res) => {
     try {
       const body = req.body || {};
@@ -98,7 +104,7 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
         precio: Number(body.precio || 0),
         oferta: !!body.oferta,
         descuento: Number(body.descuento || 0),
-        imagen: body.imagen || '', // path público (/Images/...)
+        imagen: body.imagen || '', // puede ser vacío
         stock: Number(body.stock || 0),
         isPack: !!body.isPack,
         productos: Array.isArray(body.productos) ? body.productos : []
@@ -112,7 +118,6 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     }
   });
 
-  // PUT /api/products/:id -> actualizar
   router.put('/products/:id', express.json(), async (req, res) => {
     try {
       const id = String(req.params.id);
@@ -121,7 +126,6 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
       const idx = products.findIndex(x => String(x.id) === id);
       if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
 
-      // merge con valores esperados
       products[idx] = {
         ...products[idx],
         nombre: update.nombre !== undefined ? update.nombre : products[idx].nombre,
@@ -143,7 +147,6 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     }
   });
 
-  // DELETE /api/products/:id
   router.delete('/products/:id', async (req, res) => {
     try {
       const id = String(req.params.id);
@@ -159,20 +162,61 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     }
   });
 
-  // POST /api/upload-image -> subir imagen y devolver url pública (/Images/xxx)
-  router.post('/upload-image', upload.single('image'), (req, res) => {
+  // Endpoint para comprobar si carpeta Images es escribible (diagnóstico)
+  router.get('/check-images-writable', async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'No file' });
-      const publicPath = '/Images/' + req.file.filename;
-      return res.json({ success: true, url: publicPath });
-    } catch (err) {
-      console.error('ERROR /api/upload-image:', err);
-      return res.status(500).json({ error: 'Error interno al subir imagen', details: err.message });
+      fs.access(imagesFolderPath, fs.constants.W_OK, (err) => {
+        if (err) {
+          console.error('check-images-writable: no escribible:', err);
+          return res.status(500).json({ writable: false, error: err.message });
+        }
+        return res.json({ writable: true });
+      });
+    } catch (e) {
+      console.error('check-images-writable error:', e);
+      res.status(500).json({ writable: false, error: e.message });
     }
   });
 
-  // Montar router en /api
-  app.use('/api', router);
+  // Upload image -> envolver multer para capturar errores
+  router.post('/upload-image', (req, res) => {
+    // primero asegurar que el directorio existe (extra)
+    try {
+      if (!fs.existsSync(imagesFolderPath)) fs.mkdirSync(imagesFolderPath, { recursive: true });
+    } catch (e) {
+      console.error('Error asegurando imagesFolderPath:', e);
+      return res.status(500).json({ error: 'No se pudo preparar carpeta de imágenes', details: e.message });
+    }
 
+    upload.single('image')(req, res, function (err) {
+      if (err) {
+        // multer error (size, disk, etc.) o cualquier otro
+        console.error('Multer/upload error:', err);
+        // Respuesta con detalle para debugging (temporal)
+        return res.status(500).json({ error: 'Error interno al subir imagen (multer)', details: err.message || String(err) });
+      }
+
+      try {
+        if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+
+        // Comprueba que el archivo fue escrito realmente
+        const savedPath = path.join(imagesFolderPath, req.file.filename);
+        if (!fs.existsSync(savedPath)) {
+          console.error('Archivo subido no encontrado en disco:', savedPath);
+          return res.status(500).json({ error: 'Archivo subido no encontrado en el servidor' });
+        }
+
+        const publicPath = '/Images/' + req.file.filename;
+        console.log('Imagen subida correctamente ->', publicPath);
+        return res.json({ success: true, url: publicPath });
+      } catch (e) {
+        console.error('Error en handler upload-image:', e);
+        return res.status(500).json({ error: 'Error interno al subir imagen', details: e.message });
+      }
+    });
+  });
+
+  // Montar router
+  app.use('/api', router);
   return router;
 };
