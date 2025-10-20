@@ -15,6 +15,30 @@ exports.app = app;
 // --- Servir archivos estáticos desde la carpeta 'public' ---
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Soporte adicional para rutas que incluyan el prefijo '/public/'
+// Esto permite que URLs como /public/admin.html funcionen (algunos frontends usan ese prefijo)
+app.get('/public/*', (req, res, next) => {
+  try {
+    const relPath = req.path.replace(/^\/public\//, '');
+    // Evitar que se salga de la carpeta public
+    const safeRelPath = path.normalize(relPath).replace(/^(\.\.(\/|\\|$))+/, '');
+    const filePathToSend = path.join(__dirname, 'public', safeRelPath);
+
+    if (fs.existsSync(filePathToSend) && fs.statSync(filePathToSend).isFile()) {
+      return res.sendFile(filePathToSend);
+    }
+
+    // Si no existe el archivo solicitado, intenta servir index.html como fallback
+    const indexFile = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+
+    // Si no hay index, sigue con siguiente middleware (404 final)
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Logs en memoria (útil para /api/server-status)
 const serverLogs = [];
 const serverStartTime = moment().tz("America/Havana");
