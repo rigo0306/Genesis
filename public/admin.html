@@ -5,6 +5,7 @@
   <title>Admin • Productos — Genesis</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
+    /* (igual que tenías, lo mantuve sin cambios) */
     :root{
       --bg:#0f1720;
       --card:#ffffff;
@@ -152,12 +153,12 @@
 <script>
 /* Admin UI JS
    - Preview local file with FileReader
-   - Upload image to /upload-image (multipart)
+   - Upload image to /api/upload-image (multipart)
    - Create/Update/Delete products through /api/products endpoints
 */
 
 const API_BASE = '/api'; // relative - works when backend serves frontend
-const IMAGE_UPLOAD_ENDPOINT = '/upload-image';
+const IMAGE_UPLOAD_ENDPOINT = '/api/upload-image'; // <- actualizado
 const productsTableBody = document.querySelector('#productsTable tbody');
 const countInfo = document.getElementById('countInfo');
 const emptyList = document.getElementById('emptyList');
@@ -169,7 +170,14 @@ async function fetchJson(url, opts = {}) {
   const res = await fetch(url, opts);
   if (!res.ok) {
     const text = await res.text().catch(()=>'');
-    throw new Error(`${res.status} ${res.statusText} ${text}`);
+
+    // intenta parsear JSON de error si lo hay
+    try {
+      const j = JSON.parse(text);
+      throw new Error(`${res.status} ${res.statusText} - ${j.error || j.message || text}`);
+    } catch (e) {
+      throw new Error(`${res.status} ${res.statusText} ${text}`);
+    }
   }
   return res.json();
 }
@@ -193,7 +201,6 @@ async function loadProducts(query='') {
   try {
     const data = await fetchJson(API_BASE + '/products');
     productsCache = Array.isArray(data) ? data : [];
-    // optional: client-side filter
     const filtered = query ? productsCache.filter(p => (p.nombre||'').toLowerCase().includes(query.toLowerCase())) : productsCache;
     renderProducts(filtered);
   } catch (err) {
