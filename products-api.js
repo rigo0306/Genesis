@@ -7,66 +7,77 @@ const multer = require('multer');
 
 module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPath, options = {}) {
   const router = express.Router();
-  const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-  const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
 
-  // Basic auth middleware (simple)
-  function basicAuth(req, res, next) {
-    if (!options.requireAuth) return next();
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith('Basic ')) {
-      res.setHeader('WWW-Authenticate', 'Basic realm=\"Admin\"');
-      return res.status(401).send('Authentication required');
-    }
-    const creds = Buffer.from(auth.split(' ')[1], 'base64').toString().split(':');
-    const [user, pass] = creds;
-    if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
-    res.setHeader('WWW-Authenticate', 'Basic realm=\"Admin\"');
-    return res.status(401).send('Invalid credentials');
-  }
-
-  // Ensure files/folders exist
+  // Asegura que existan directorios y archivo
   fs.mkdirSync(path.dirname(productsJsonPath), { recursive: true });
-  if (!fs.existsSync(productsJsonPath)) fs.writeFileSync(productsJsonPath, '[]', 'utf8');
   fs.mkdirSync(imagesFolderPath, { recursive: true });
 
-  // Multer for image uploads
+  // Si no existe el archivo, inicializar con array vacío
+  if (!fs.existsSync(productsJsonPath)) {
+    fs.writeFileSync(productsJsonPath, '[]', 'utf8');
+  } else {
+    // Si existe y es un objeto con "products", normalizamos a array y guardamos
+    try {
+      const raw = fs.readFileSync(productsJsonPath, 'utf8').trim();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Array.isArray(parsed.products)) {
+          fs.writeFileSync(productsJsonPath, JSON.stringify(parsed.products, null, 2), 'utf8');
+        }
+      }
+    } catch (e) {
+      // si algo falla dejamos el archivo como está (no romper startup)
+      console.warn('Warning normalizing products.json:', e.message);
+    }
+  }
+
+  // Multer para subir imágenes (guarda en imagesFolderPath)
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, imagesFolderPath),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
+      const ext = path.extname(file.originalname) || '';
       const name = Date.now() + '-' + Math.random().toString(36).slice(2,9) + ext;
       cb(null, name);
     }
   });
-  const upload = multer({ storage });
+  const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+  // Lectura segura de productos -> siempre devuelve un array
   async function readProducts() {
     try {
       const raw = await fs.promises.readFile(productsJsonPath, 'utf8');
-      return JSON.parse(raw || '[]');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.products)) return parsed.products;
+      return [];
     } catch (e) {
+      // si hay error, intenta recuperarse devolviendo array vacío
+      console.error('readProducts error:', e.message);
       return [];
     }
   }
 
+  // Escritura segura (con lock) -> escribe siempre un array JSON
   async function writeProducts(arr) {
-    // use lock to avoid races
-    const release = await lockfile.lock(productsJsonPath).catch(()=>null);
+    let release = null;
     try {
-      await fs.promises.writeFile(productsJsonPath, JSON.stringify(arr, null, 2), 'utf8');
+      release = await lockfile.lock(productsJsonPath).catch(()=>null);
+      await fs.promises.writeFile(productsJsonPath, JSON.stringify(Array.isArray(arr) ? arr : [], null, 2), 'utf8');
     } finally {
-      if (release) await release();
+      if (release) {
+        try { await release(); } catch (e) { /* ignore */ }
+      }
     }
   }
 
-  // GET /api/products
+  // GET /api/products -> lista
   router.get('/products', async (req, res) => {
     const products = await readProducts();
     res.json(products);
   });
 
-  // GET single
+  // GET /api/products/:id -> uno
   router.get('/products/:id', async (req, res) => {
     const products = await readProducts();
     const p = products.find(x => String(x.id) === String(req.params.id));
@@ -74,62 +85,94 @@ module.exports = function initProductsApi(app, productsJsonPath, imagesFolderPat
     res.json(p);
   });
 
-  // POST /api/products - crear producto
-  router.post('/products', basicAuth, express.json(), async (req, res) => {
-    const body = req.body || {};
-    const products = await readProducts();
-    // id simple: timestamp
-    const id = Date.now().toString();
-    const newProd = {
-      id,
-      nombre: body.nombre || 'Nuevo producto',
-      descripcion: body.descripcion || '',
-      precio: Number(body.precio || 0),
-      oferta: !!body.oferta,
-      descuento: Number(body.descuento || 0),
-      imagen: body.imagen || null,
-      stock: Number(body.stock || 0),
-      isPack: !!body.isPack,
-      productos: body.productos || []
-    };
-    products.push(newProd);
-    await writeProducts(products);
-    res.json({ success: true, producto: newProd });
+  // POST /api/products -> crear (sin auth para admin local; si quieres auth lo activamos)
+  router.post('/products', express.json(), async (req, res) => {
+    try {
+      const body = req.body || {};
+      const products = await readProducts();
+      const id = Date.now().toString();
+      const newProd = {
+        id,
+        nombre: body.nombre || 'Nuevo producto',
+        descripcion: body.descripcion || '',
+        precio: Number(body.precio || 0),
+        oferta: !!body.oferta,
+        descuento: Number(body.descuento || 0),
+        imagen: body.imagen || '', // path público (/Images/...)
+        stock: Number(body.stock || 0),
+        isPack: !!body.isPack,
+        productos: Array.isArray(body.productos) ? body.productos : []
+      };
+      products.push(newProd);
+      await writeProducts(products);
+      res.json({ success: true, producto: newProd });
+    } catch (err) {
+      console.error('ERROR POST /products:', err);
+      res.status(500).json({ error: 'Error interno al crear producto', details: err.message });
+    }
   });
 
-  // PUT /api/products/:id - actualizar
-  router.put('/products/:id', basicAuth, express.json(), async (req, res) => {
-    const id = String(req.params.id);
-    const update = req.body || {};
-    const products = await readProducts();
-    const idx = products.findIndex(x => String(x.id) === id);
-    if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
-    products[idx] = { ...products[idx], ...update };
-    await writeProducts(products);
-    res.json({ success: true, producto: products[idx] });
+  // PUT /api/products/:id -> actualizar
+  router.put('/products/:id', express.json(), async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const update = req.body || {};
+      const products = await readProducts();
+      const idx = products.findIndex(x => String(x.id) === id);
+      if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+
+      // merge con valores esperados
+      products[idx] = {
+        ...products[idx],
+        nombre: update.nombre !== undefined ? update.nombre : products[idx].nombre,
+        descripcion: update.descripcion !== undefined ? update.descripcion : products[idx].descripcion,
+        precio: update.precio !== undefined ? Number(update.precio) : products[idx].precio,
+        oferta: update.oferta !== undefined ? !!update.oferta : products[idx].oferta,
+        descuento: update.descuento !== undefined ? Number(update.descuento) : products[idx].descuento,
+        imagen: update.imagen !== undefined ? update.imagen : products[idx].imagen,
+        stock: update.stock !== undefined ? Number(update.stock) : products[idx].stock,
+        isPack: update.isPack !== undefined ? !!update.isPack : products[idx].isPack,
+        productos: Array.isArray(update.productos) ? update.productos : products[idx].productos
+      };
+
+      await writeProducts(products);
+      res.json({ success: true, producto: products[idx] });
+    } catch (err) {
+      console.error('ERROR PUT /products/:id:', err);
+      res.status(500).json({ error: 'Error interno al actualizar producto', details: err.message });
+    }
   });
 
-  // DELETE
-  router.delete('/products/:id', basicAuth, async (req, res) => {
-    const id = String(req.params.id);
-    let products = await readProducts();
-    const exists = products.some(x => String(x.id) === id);
-    if (!exists) return res.status(404).json({ error: 'No encontrado' });
-    products = products.filter(x => String(x.id) !== id);
-    await writeProducts(products);
-    res.json({ success: true });
+  // DELETE /api/products/:id
+  router.delete('/products/:id', async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      let products = await readProducts();
+      const exists = products.some(x => String(x.id) === id);
+      if (!exists) return res.status(404).json({ error: 'No encontrado' });
+      products = products.filter(x => String(x.id) !== id);
+      await writeProducts(products);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('ERROR DELETE /products/:id', err);
+      res.status(500).json({ error: 'Error interno al eliminar', details: err.message });
+    }
   });
 
-  // Upload image -> returns path usable by frontend (/Images/<name>)
-  router.post('/upload-image', basicAuth, upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    const publicPath = '/Images/' + req.file.filename; // Genesis-main serves /Images/
-    res.json({ success: true, url: publicPath });
+  // POST /api/upload-image -> subir imagen y devolver url pública (/Images/xxx)
+  router.post('/upload-image', upload.single('image'), (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file' });
+      const publicPath = '/Images/' + req.file.filename;
+      return res.json({ success: true, url: publicPath });
+    } catch (err) {
+      console.error('ERROR /api/upload-image:', err);
+      return res.status(500).json({ error: 'Error interno al subir imagen', details: err.message });
+    }
   });
 
-  // Mount router with prefix /api
+  // Montar router en /api
   app.use('/api', router);
 
-  // Return for tests
   return router;
 };
