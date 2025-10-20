@@ -2,14 +2,11 @@ let cart = JSON.parse(localStorage.getItem('cart')) || [];
 let products = [];
 let currentProduct = null;
 let categories = [];
-// Categoría actualmente seleccionada (más fiable que buscar por estilos inline)
 let currentCategory = 'Todo';
-// Variables para control del scroll
 let lastScrollPosition = 0;
 const headerHeight = document.querySelector('.header').offsetHeight;
 const header = document.querySelector('.header');
 
-// Función para ir al inicio
 function goToHome() {
     window.location.hash = '';
     hideProductDetail();
@@ -17,7 +14,6 @@ function goToHome() {
     toggleCarousel(true);
 }
 
-// Manejo del historial con hash
 window.addEventListener('popstate', handleRouteChange);
 window.addEventListener('hashchange', handleRouteChange);
 
@@ -30,15 +26,20 @@ function handleRouteChange() {
     }
 }
 
-// Cargar productos
+// --- Cargar productos desde API /api/products ---
 async function loadProducts() {
     try {
-        const response = await fetch('Json/products.json');
-        if (!response.ok) throw new Error('Error al cargar productos');
-        const data = await response.json();
-        
+        const response = await fetch('/api/products'); // <-- Aquí cambiamos a la ruta del backend
+        if (!response.ok) throw new Error('Error al cargar productos desde backend');
+
+        let data = await response.json();
+
+        // Normalizar: si la API devuelve array directo
+        if (Array.isArray(data)) data = { products: data };
+        else if (!data.products) data.products = [];
+
         const productGroups = {};
-        
+
         data.products.forEach(product => {
             if (product.tipo === 'pack') {
                 products.push({
@@ -49,75 +50,68 @@ async function loadProducts() {
                 });
                 return;
             }
-            
+
             const baseName = product.nombre.split('(')[0].trim();
             const variantName = product.nombre.match(/\((.*?)\)/)?.[1] || '';
-            
+
             if (!productGroups[baseName]) {
                 productGroups[baseName] = {
                     baseName: baseName,
                     variants: []
                 };
             }
-            
+
             productGroups[baseName].variants.push({
                 ...product,
                 cleanName: product.nombre.replace(/\(v\d+\)\s*/g, ''),
                 variantName: variantName
             });
         });
-        
+
         for (const baseName in productGroups) {
             const group = productGroups[baseName];
-            
+
             if (group.variants.length > 1) {
                 products.push({
-                    ...group.variants[0], // Usa el primer variante como base para el grupo
-                    id: `group_${baseName.replace(/\s+/g, '_')}`, // Asegura un ID único
+                    ...group.variants[0],
+                    id: `group_${baseName.replace(/\s+/g, '_')}`,
                     isGrouped: true,
                     baseName: baseName,
                     variants: group.variants,
-                    currentVariant: 0, // Índice de la variante actual
-                    // Hereda otras propiedades importantes del primer variante si es necesario
-                    nombre: group.variants[0].nombre, // Nombre inicial del grupo (puede ser el del primer variante)
+                    currentVariant: 0,
+                    nombre: group.variants[0].nombre,
                     descripcion: group.variants[0].descripcion,
                     categoria: group.variants[0].categoria,
-                    // No heredes precio directamente aquí, se tomará de la variante actual
                 });
             } else {
                 products.push(group.variants[0]);
             }
         }
-        
+
         const uniqueCategories = new Set(products.map(product => product.categoria));
         categories = ['Todo', ...uniqueCategories];
-        
+
         renderCategories();
         initPriceFilter();
 
-        // --- ORDEN DE RENDERIZADO CORREGIDO ---
-        renderTopProducts();  // 1. Renderizar Los Más Vendidos primero
-        renderPacksPanel();   // 2. Renderizar Packs Especiales después
-        renderProducts();     // 3. Renderizar la cuadrícula principal de productos al final
-        // --- FIN DEL ORDEN DE RENDERIZADO ---
-        
+        // Orden de renderizado
+        renderTopProducts();
+        renderPacksPanel();
+        renderProducts();
+
         updateCartCount();
         updateCart();
-        
-        if (window.location.hash) {
-            handleRouteChange();
-        }
+
+        if (window.location.hash) handleRouteChange();
 
         document.getElementById('close-sidebar')?.addEventListener('click', toggleSidebar);
         document.getElementById('menu-toggle')?.addEventListener('click', toggleSidebar);
-        // Corregido: el overlay se crea dinámicamente, el listener se añade al crearlo o se usa event delegation.
-        // document.getElementById('overlay')?.addEventListener('click', toggleSidebar); // Este overlay se crea en toggleSidebar
+
     } catch (error) {
         console.error('Error en loadProducts:', error);
-        // Considera mostrar un mensaje de error más amigable al usuario en la UI
-        // alert('Error al cargar los productos. Por favor recarga la página.'); 
     }
 }
+
 
 function handleScroll() {
     const currentScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
