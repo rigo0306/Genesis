@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Eliminé meta tags obsoletos para caché -->
+    <meta name="keywords" content="Genesis, Online Shop, Las Tunas, Cuba, Productos, Calidad, Conectar, Familias">
+    <meta name="author" content="Genesis Shops">
+    
+    <link rel="icon" href="Images/logo_2.png" type="image/x-icon">
+    
+    <!-- Metadatos para compartir en redes sociales (Open Graph) -->
+    <meta property="og:title" content="Genesis Shops">
+    <meta property="og:description" content="Descubre los mejores productos en Genesis Shops.">
+    <meta property="og:image" content="https://genesis-sf8f.onrender.com/Images/logo_share.jpg">
+    <meta property="og:url" content="https://genesis-sf8f.onrender.com">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Genesis Shops">
+    
+    <title>Genesis - Tienda</title>
+    
+    <link rel="stylesheet" href="Css/styles.css">
+    <link rel="stylesheet" href="Css/pack-styles.css">
+    <link rel="stylesheet" href="Css/share-styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Overlay para el sidebar -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Overlay para el carrito -->
+    <div class="cart-overlay" id="cart-overlay"></div>
+    
+    <!-- Menú lateral para móvil -->
+    <aside class="sidebar" id="sidebar">
+        <button class="close-sidebar" id="close-sidebar">
+            <i class="fas fa-times"></i>
+        </button>
+        
+        <div class="sidebar-header">
+            <h3>Filtros</h3>
+        </div>
+        
+        <div class="sidebar-section">
+            <h4 class="sidebar-title">Categorías</h4>
+            <ul class="sidebar-categories" id="sidebar-categories">
+                <!-- Las categorías se llenarán dinámicamente -->
+            </ul>
+        </div>
+        
+        <div class="sidebar-section">
+            <h4 class="sidebar-title">Rango de Precios</h4>
+            <div class="price-filter">
+                <div class="price-inputs">
+                    <div class="price-input-group">
+                        <label for="min-price">Mínimo</label>
+                        <input type="number" id="min-price" placeholder="$ 0" min="0">
+                    </div>
+                    <div class="price-input-group">
+                        <label for="max-price">Máximo</label>
+                        <input type="number" id="max-price" placeholder="$ Max" min="0">
+                    </div>
+                </div>
+                <div class="price-slider">
+                    <div class="price-slider-track"></div>
+                    <input type="range" id="price-slider-min" class="price-range" min="0" max="1000" value="0">
+                    <input type="range" id="price-slider-max" class="price-range" min="0" max="1000" value="1000">
+                </div>
+                <button class="apply-filter-btn" id="apply-price-filter">
+                    <i class="fas fa-filter"></i> Aplicar Filtros
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <header class="header">
+        <div class="header-top">
+            <!-- Menú hamburguesa solo en móvil -->
+            <button class="menu-toggle" id="menu-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <!-- Logo -->
+            <!-- Logo como imagen -->
+            <div class="logo-container" onclick="goToHome()">
+                <img src="Images/logo.png" alt="Genesis Logo" class="logo-img">
+            </div>
+            
+            <!-- Barra de búsqueda -->
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Busca Genesis.." oninput="searchProducts()">
+                <button class="search-btn" onclick="searchProducts()">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <!-- Carrito -->
+            <button class="cart-btn" onclick="toggleCart()">
+                <i class="fas fa-shopping-cart"></i>
+                <span id="cart-count">0</span>
+            </button>
+        </div>
+        
+        <!-- Categorías (solo en desktop) -->
+        <nav class="categories-nav">
+            <ul class="categories-list" id="categories-list">
+                <!-- Las categorías se llenarán dinámicamente -->
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Carrusel de imágenes (solo visible en página principal) -->
+    <div class="hero-carousel" id="main-carousel">
+        <div class="carousel-track-container">
+            <div class="carousel-track">
+                <!-- Slide 1 -->
+                <div class="carousel-slide active" data-target="oferta" data-filter="oferta">
+                    <img src="Images/carousel-1.jpg" alt="Oferta 1" class="carousel-image">
+                    <div class="carousel-caption">
+                        <h3>Más fácil con nosotros</h3>
+                        <p>Ahora es más fácil que nunca encontrar lo que necesitas</p>
+                        <button class="carousel-btn" data-action="filter" data-filter="oferta">Comprar Ahora</button>
+                    </div>
+                    <div class="carousel-gradient"></div>
+                </div>
+                <!-- Slide 2 -->
+                <div class="carousel-slide" data-target="nuevos" data-filter="nuevo">
+                    <img src="Images/carousel-2.jpg" alt="Oferta 2" class="carousel-image">
+                    <div class="carousel-caption">
+                        <h3>Productos frescos</h3>
+                        <p>No te pierdas nuestras últimas incorporaciones</p>
+                        <button class="carousel-btn" data-action="filter" data-filter="nuevo">Explorar</button>
+                    </div>
+                    <div class="carousel-gradient"></div>
+                </div>
+                <!-- Slide 3 -->
+                <div class="carousel-slide" data-target="mas-vendidos" data-filter="mas_vendido">
+                    <img src="Images/carousel-3.jpg" alt="Oferta 3" class="carousel-image">
+                    <div class="carousel-caption">
+                        <h3>Los Más Vendidos</h3>
+                        <p>Lo que nuestros clientes prefieren</p>
+                        <button class="carousel-btn" data-action="filter" data-filter="mas_vendido">Ver Productos</button>
+                    </div>
+                    <div class="carousel-gradient"></div>
+                </div>
+            </div>
+        </div>
+        <button class="carousel-control prev" onclick="moveSlide(1)" aria-label="Anterior">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button class="carousel-control next" onclick="moveSlide(-1)" aria-label="Siguiente">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <div class="carousel-dots">
+            <span class="dot active" onclick="currentSlide(1)"></span>
+            <span class="dot" onclick="currentSlide(2)"></span>
+            <span class="dot" onclick="currentSlide(3)"></span>
+        </div>
+    </div>
+
+    <main id="main-content">
+        <!-- El panel de packs se generará dinámicamente -->
+        <div class="products-grid" id="products-container"></div>
+        
+        <div class="product-detail" id="product-detail" style="display: none;"></div>
+        <!-- Panel de busqueda no encontrada -->
+        <div id="no-results-message" class="no-results-container" style="display: none;">
+            <div class="no-results-content">
+                <i class="fas fa-search no-results-icon"></i>
+                <h3 class="no-results-title">No encontramos resultados</h3>
+                <p class="no-results-message">No hay productos que coincidan con "<span class="no-results-term">lo</span>"</p>
+                <button class="clear-search-btn" onclick="clearSearch()">
+                    <i class="fas fa-times"></i> Limpiar búsqueda
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div class="cart-sidebar" id="cart">
+        <div class="cart-header">
+            <h2><i class="fas fa-shopping-cart"></i> Tu Carrito</h2>
+            <button class="close-btn" onclick="toggleCart()">×</button>
+        </div>
+        <div class="cart-content">
+            <div class="cart-items" id="cart-items"></div>
+            <div class="empty-cart-panel" id="empty-cart-panel">
+                <i class="fas fa-shopping-basket"></i>
+                <h3>Tu carrito está vacío</h3>
+                <p>Explora nuestros productos y encuentra algo especial</p>
+                <button class="continue-btn" onclick="toggleCart()">Seguir comprando</button>
+            </div>
+            <div class="cart-total">
+                <p>Total: $<span id="total">0.00</span></p>
+                <button class="checkout-btn">Finalizar Compra</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de carrito vacío -->
+    <div class="empty-cart-modal" id="empty-cart-modal">
+        <div class="empty-cart-content">
+            <i class="fas fa-shopping-cart"></i>
+            <h3>Tu carrito está vacío</h3>
+            <p>Añade productos para continuar con tu compra</p>
+            <button class="continue-shopping-btn" onclick="closeEmptyCartModal()">Seguir comprando</button>
+        </div>
+    </div>
+
+    <!-- Payment Section -->
+    <section id="payment-section" class="payment-section hidden">
+        <div class="payment-container">
+            <div class="payment-header">
+                <h2><i class="fas fa-file-invoice-dollar"></i> Finalizar Compra</h2>
+                <button class="close-btn" onclick="hidePaymentSection()">×</button>
+            </div>
+            <form id="payment-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="full-name"><i class="fas fa-user"></i> Su Nombre Completo</label>
+                        <input type="text" id="full-name" name="full-name" placeholder="Su Nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email"><i class="fas fa-envelope"></i> Su Correo Electrónico</label>
+                        <input type="email" id="email" name="email" placeholder="Su Correo Electrónico" required>
+                    </div>
+                </div>              
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="phone"><i class="fas fa-mobile-alt"></i> Su Número de Teléfono</label>
+                        <input type="tel" id="phone" name="phone" placeholder="Número de teléfono" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reciver_phone"><i class="fas fa-mobile-alt"></i> Teléfono del receptor</label>
+                        <div class="phone-input-container">
+                            <span class="phone-prefix">+53</span>
+                            <input type="tel" id="reciver_phone" name="reciver_phone" placeholder="Número de teléfono" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="recipient-name"><i class="fas fa-user-friends"></i> Persona que recibirá el pedido</label>
+                            <input type="text" id="recipient-name" name="recipient-name" placeholder="Nombre del destinatario" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="address"><i class="fas fa-map-marker-alt"></i> Dirección de Envío</label>
+                        <input type="text" id="address" name="address" placeholder="Dirección de envío" required>
+                    </div>
+                </div>
+
+                <div class="delivery-message">
+                    <p><i class="fas fa-shipping-fast"></i> Envío gratuito. Entrega en 24-48 horas.</p>
+                </div>
+
+                <h3 class="order-summary-title"><i class="fas fa-shopping-cart"></i> Resumen de tu Pedido</h3>
+                <div class="order-summary" id="order-summary">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th><i class="fas fa-box-open"></i> Producto</th>
+                          <th><i class="fas fa-hashtag"></i> Cantidad</th>
+                          <th><i class="fas fa-tag"></i> Precio Unitario</th>
+                          <th><i class="fas fa-calculator"></i> Total</th>
+                        </tr>
+                      </thead>
+                      <tbody id="summary-items">
+                        <!-- Productos se llenan dinámicamente -->
+                      </tbody>
+                    </table>
+                </div>
+                
+                <div class="order-total">
+                    <p>Total a pagar: <span id="payment-total">0.00</span></p>
+                </div>
+
+                <div class="payment-actions">
+                    <button type="submit" class="submit-btn">Confirmar Pedido</button>
+                    <button type="button" class="cancel-btn" onclick="hidePaymentSection()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- Panel de confirmación de compra -->
+    <div class="order-confirmation-modal" id="order-confirmation-modal">
+        <div class="order-confirmation-content">
+            <div class="confirmation-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>¡Pedido Confirmado!</h2>
+            <p class="confirmation-message">Gracias por tu compra. Estamos procesando tu pedido y te contactaremos pronto 😊.</p>
+            
+            <div class="contact-info">
+                <p><i class="fas fa-phone-alt"></i> +53 56905444</p>
+                <p><i class="fas fa-envelope"></i> soporte.genesis.shop@gmail.com</p>
+            </div>
+            
+            <button class="back-to-home-btn" onclick="closeConfirmationAndGoHome()">
+                <i class="fas fa-chevron-left"></i> Volver a la tienda
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-section about">
+                <h2>Sobre Nosotros</h2>
+                <p>Genesis es tu tienda de confianza en Las Tunas, ofreciendo los mejores productos con calidad y compromiso.</p>
+            </div>
+            <div class="footer-section links">
+                <h2>Enlaces</h2>
+                <ul>
+                    <li><a href="#productos">Productos</a></li>
+                    <li><a href="#carrito">Carrito</a></li>
+                </ul>
+            </div>
+            <div class="footer-section contact">
+                <h2>Contacto</h2>
+                <p><i class="fas fa-phone-alt"></i> Teléfono: +53 56905444</p>
+                <p><i class="fas fa-envelope"></i> Email: soporte.genesis.shop@gmail.com</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Genesis | Desarrollado por HLab - v1.3.0</p>
+        </div>
+    </footer>
+
+    <!-- Botón flotante de WhatsApp -->
+    <div class="whatsapp-float" onclick="openWhatsApp()">
+        <img src="Images/whatsapp.svg" alt="Contactar por WhatsApp" class="whatsapp-icon">
+        <span class="whatsapp-tooltip">¡Contáctanos!</span>
+    </div>
+
+    <!-- html2canvas library -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    
+    <script src="Js/share-sound.js"></script>
+    <script src="Js/afiliados.js"></script>
+    <script src="Js/script.js"></script>
+    <script src="Js/payment.js"></script>
+    <script src="Js/share.js"></script>
+</body>
+</html>

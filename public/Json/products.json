@@ -1,0 +1,77 @@
+{
+  "products": [
+    {
+      "nombre": "Piña 1",
+      "categoria": "Despensa",
+      "precio": 3.95,
+      "descuento": 0,
+      "mas_vendido": true,
+      "nuevo": true,
+      "oferta": false,
+      "imagenes": [
+        "pina.jpg"
+      ],
+      "descripcion": "Informacion random del producto en cuestion en caso de quererlo, sino lo puede dejar vacio",
+      "disponibilidad": true
+    },
+    {
+      "nombre": "Piña 2",
+      "categoria": "Despensa",
+      "precio": 2.10,
+      "descuento": 0,
+      "mas_vendido": false,
+      "nuevo": true,
+      "oferta": false,
+      "imagenes": [
+        "pina.jpg"
+      ],
+      "descripcion": "Informacion estandar de lo que quiera del producto",
+      "disponibilidad": true
+    },
+
+
+
+
+
+    {
+      "nombre": "Combo 1",
+      "categoria": "Combos",
+      "tipo": "pack",
+      "productos": [
+        "x17 Producto 1",
+        "x6 Producto 2",
+        "x2 Producto 3",
+        "x3 Producto 4",
+        "x1 Producto 5"
+      ],
+      "precio": 99.90,
+      "descuento": 0,
+      "mas_vendido": false,
+      "nuevo": true,
+      "imagenes": ["combos/pack.jpg"],
+      "disponibilidad": true,
+      "ahorro": 0,
+      "descripcion": "Una descripcion del combo como mas te guste para resaltar el prodcuto"
+    },
+    {
+      "nombre": "Combo 2",
+      "categoria": "Combos",
+      "tipo": "pack",
+      "productos": [
+        "x17 Producto 1",
+        "x6 Producto 2",
+        "x2 Producto 3",
+        "x3 Producto 4",
+        "x1 Producto 5"
+      ],
+      "precio": 90.90,
+      "descuento": 0,
+      "mas_vendido": false,
+      "nuevo": true,
+      "imagenes": ["combos/pack.jpg"],
+      "disponibilidad": true,
+      "ahorro": 0,
+      "descripcion": "Informacion del combo como de costumbre"
+    }
+  ]
+}

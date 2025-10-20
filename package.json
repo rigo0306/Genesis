@@ -1,0 +1,26 @@
+{
+  "name": "montaque-backend",
+  "version": "1.0.0",
+  "description": "Backend para Montaque",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "moment-timezone": "^0.5.48",
+    "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
+    "proper-lockfile": "^4.1.2",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
