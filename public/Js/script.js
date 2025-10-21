@@ -28,7 +28,31 @@ function handleRouteChange() {
 
 // --- Cargar productos desde API /api/products ---
 async function loadProducts() {
+
     try {
+        // Intentar cargar desde la API del backend
+        let data = null;
+        try {
+            const response = await fetch('/api/products');
+            if (!response.ok) throw new Error('Error al cargar productos desde backend: ' + response.status);
+            data = await response.json();
+        } catch (apiErr) {
+            console.warn('No se pudo cargar desde /api/products, intentando Json/products.json -', apiErr.message);
+            // fallback: cargar desde el JSON público (cuando no hay backend)
+            try {
+                const respLocal = await fetch('Json/products.json');
+                if (!respLocal.ok) throw new Error('Error al cargar Json/products.json: ' + respLocal.status);
+                data = await respLocal.json();
+            } catch (localErr) {
+                // si también falla, relanzar el error original de la API
+                throw apiErr;
+            }
+        }
+
+        // Normalizar: si la API devuelve array directo
+        if (Array.isArray(data)) data = { products: data };
+        else if (!data.products) data.products = [];
+
         const response = await fetch('/api/products'); // <-- Aquí cambiamos a la ruta del backend
         if (!response.ok) throw new Error('Error al cargar productos desde backend');
 
