@@ -129,6 +129,27 @@
             </div>
           </div>
 
+          <div class="field" style="display:flex;gap:8px">
+            <div style="flex:1">
+              <label>Categoría</label>
+              <input name="categoria" type="text" placeholder="Ej: Despensa, Bebidas, Combos" />
+            </div>
+            <div style="width:140px">
+              <label>Tipo</label>
+              <select name="tipo" id="tipoSelect">
+                <option value="producto">Producto</option>
+                <option value="pack">Pack / Combo</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field" id="packItemsField" style="display:none">
+            <label>Productos del Pack (una por línea)</label>
+            <textarea name="productos" id="packItems" placeholder="Ej: x2 Pan
+x1 Jugo"></textarea>
+            <div class="small">Formato libre — cada línea será un ítem del pack.</div>
+          </div>
+
           <div class="field">
             <label>Imagen (subir)</label>
             <input id="imageInput" type="file" name="image" accept="image/*" />
@@ -160,7 +181,21 @@
    - Create/Update/Delete products through /api/products endpoints
 */
 
-const API_BASE = '/api'; // relative - works when backend serves frontend
+const API_BASE = '/api';
+const tipoSelect = document.getElementById('tipoSelect');
+const packItemsField = document.getElementById('packItemsField');
+const packItemsTextarea = document.getElementById('packItems');
+
+function updatePackVisibility() {
+  if (!tipoSelect) return;
+  if (tipoSelect.value === 'pack') {
+    packItemsField.style.display = 'block';
+  } else {
+    packItemsField.style.display = 'none';
+  }
+}
+if (tipoSelect) tipoSelect.addEventListener('change', updatePackVisibility);
+ // relative - works when backend serves frontend
 const IMAGE_UPLOAD_ENDPOINT = '/api/upload-image'; // <- endpoint correcto
 const productsTableBody = document.querySelector('#productsTable tbody');
 const countInfo = document.getElementById('countInfo');
@@ -257,6 +292,9 @@ async function loadToForm(id) {
     form.descripcion.value = p.descripcion || '';
     form.precio.value = p.precio || 0;
     form.stock.value = p.stock || 0;
+    form.categoria.value = p.categoria || '';
+    if (p.tipo === 'pack' || p.isPack) { form.tipo.value = 'pack'; updatePackVisibility(); packItemsTextarea.value = (Array.isArray(p.productos) ? p.productos.join('\n') : (p.productos||'')); } else { form.tipo.value = 'producto'; updatePackVisibility(); packItemsTextarea.value = ''; }
+
     form.oferta.value = p.oferta ? 'true' : 'false';
     form.descuento.value = p.descuento || 0;
     imgPreview.src = p.imagen || '';
@@ -296,6 +334,19 @@ document.getElementById('productForm').onsubmit = async function(e) {
     oferta: form.oferta.value === 'true',
     descuento: Number(form.descuento.value || 0),
   };
+  body.categoria = form.categoria ? form.categoria.value : '';
+  const tipoVal = (form.tipo && form.tipo.value) ? form.tipo.value : 'producto';
+  if (tipoVal === 'pack') {
+    body.tipo = 'pack';
+    body.isPack = true;
+    const itemsRaw = (packItemsTextarea && packItemsTextarea.value) ? packItemsTextarea.value.split('\n') : [];
+    body.productos = itemsRaw.map(s => s.trim()).filter(s=>s);
+  } else {
+    body.tipo = 'producto';
+    body.isPack = false;
+    body.productos = [];
+  }
+
 
   setSaving(true);
   try {
